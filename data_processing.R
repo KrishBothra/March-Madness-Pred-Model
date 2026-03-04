@@ -8,14 +8,14 @@ library(dplyr)
 
 # 1. Set the path to your folder
 
-folder_path <- "march-madness-data"
-file_paths <- list.files(path = folder_path, pattern = "\\.csv$", full.names = TRUE)
-file_names <- tools::file_path_sans_ext(basename(file_paths))
-clean_names <- gsub("[ -]", "_", file_names)
-clean_names <- make.names(clean_names) 
-my_data_list <- lapply(file_paths, read.csv)
-names(my_data_list) <- clean_names
-list2env(my_data_list, envir = .GlobalEnv)
+#folder_path <- "march-madness-data"
+#file_paths <- list.files(path = folder_path, pattern = "\\.csv$", full.names = TRUE)
+#file_names <- tools::file_path_sans_ext(basename(file_paths))
+#clean_names <- gsub("[ -]", "_", file_names)
+#clean_names <- make.names(clean_names) 
+#my_data_list <- lapply(file_paths, read.csv)
+#names(my_data_list) <- clean_names
+#list2env(my_data_list, envir = .GlobalEnv)
 
 
 matchups <- read.csv("march-madness-data/Tournament Matchups.csv", check.names = FALSE)
@@ -125,7 +125,151 @@ matchups_enriched <- matchups |>
             suffix = c("", "_l")) |>
   rename_with(~ paste0("l_", .), .cols = ends_with("_l"))
 
+write.csv(matchups_enriched, "March-Madness/matchups_enriched.csv", row.names = FALSE)
+
+
+# glimpse(matchups_enriched |> select(1:15))
+# 
+# # How many games per year?
+# matchups_enriched |> count(YEAR)
+# 
+# # Confirm the target: Winner is a team name, we need to convert to 1/0
+# matchups_enriched |> select(hSeedTeam, lSeedTeam, hSeed, lSeed, Winner) |> head(10)
 
 
 
+h_stat_cols <- matchups_enriched |>
+  select(starts_with("h_")) |>
+  select(-matches("RANK|TEAM|SEED|ROUND|CONF|BID|QUAD|ID")) |>
+  colnames()
 
+l_stat_cols <- matchups_enriched |>
+  select(-starts_with("h_")) |>
+  select(-any_of(c("Game_ID","YEAR","CURRENT ROUND","Winner","Loser",
+                   "hSeedTeam","lSeedTeam","hSeed","lSeed",
+                   "hSeedScore","lSeedScore","l_h_L"))) |>
+  select(-matches("RANK|TEAM|SEED|ROUND|CONF|BID|QUAD|ID")) |>
+  select(where(is.numeric)) |>
+  colnames()
+
+# Strip h_ prefix to get base names, then find stats present for BOTH teams
+h_base <- str_remove(h_stat_cols, "^h_")
+shared_stats <- intersect(h_base, l_stat_cols)
+
+cat("h_ stat cols:", length(h_stat_cols), "\n")
+cat("l_ stat cols:", length(l_stat_cols), "\n")
+cat("Shared (usable) stats:", length(shared_stats), "\n")
+
+
+# Compute DIFF for each of the 92 shared stats
+# DIFF = higher seed stat - lower seed stat
+# Positive = higher seed is better in that stat
+
+diff_df <- map_dfc(shared_stats, function(stat) {
+  h_vals <- as.numeric(matchups_enriched[[paste0("h_", stat)]])
+  l_vals <- as.numeric(matchups_enriched[[stat]])
+  tibble(!!paste0("DIFF_", stat) := h_vals - l_vals)
+})
+
+# Build the target variable
+# hSeed_won = 1 means the better seed won (expected outcome)
+# hSeed_won = 0 means the worse seed won (upset)
+model_df <- bind_cols(
+  matchups_enriched |> select(YEAR, Game_ID, `CURRENT ROUND`,
+                              hSeedTeam, lSeedTeam, 
+                              hSeed, lSeed,
+                              hSeedScore, lSeedScore, Winner),
+  diff_df
+) |>
+  mutate(hSeed_won = ifelse(Winner == hSeedTeam, 1L, 0L))
+
+cat("Rows:", nrow(model_df), "\n")
+cat("Cols:", ncol(model_df), "\n")
+cat("Higher seed win rate:", round(mean(model_df$hSeed_won), 3), "\n")
+cat("Missing values in diff cols:", sum(is.na(diff_df)), "\n")
+
+na_summary <- diff_df |>
+  summarise(across(everything(), ~ sum(is.na(.)))) |>
+  pivot_longer(everything(), names_to = "col", values_to = "na_count") |>
+  filter(na_count > 0) |>
+  arrange(desc(na_count))
+
+# Also check: are the NAs concentrated in certain years?
+model_df |>
+  mutate(has_na = rowSums(is.na(across(starts_with("DIFF_")))) > 0) |>
+  count(YEAR, has_na) |>
+  filter(has_na == TRUE)
+
+# Step 1: See exactly which years have COMPLETE stat coverage
+model_df |>
+  mutate(has_na = rowSums(is.na(across(starts_with("DIFF_")))) > 0) |>
+  count(YEAR, has_na) |>
+  print(n = 40)
+
+
+
+# Step 2: Drop columns that are missing too much data across ALL years
+# (Kill Shots, NPB Rating — not worth keeping if they're missing 40%+ of rows)
+# cols_to_drop <- na_summary |>
+#   filter(na_count > 200) |>  # drop any col missing more than 200 rows
+#   pull(col)
+# 
+# cat("Dropping", length(cols_to_drop), "columns due to too many NAs:\n")
+# print(cols_to_drop)
+# 
+# model_df_clean <- model_df |>
+#   select(-all_of(cols_to_drop))
+# 
+# # Step 3: Drop years where stats weren't available
+# # Keep only years where we have complete coverage
+# model_df_clean <- model_df_clean |>
+#   filter(rowSums(is.na(across(starts_with("DIFF_")))) == 0)
+# 
+# cat("Rows remaining:", nrow(model_df_clean), "\n")
+# cat("Years remaining:\n")
+# model_df_clean |> count(YEAR) |> print()
+# cat("Higher seed win rate:", round(mean(model_df_clean$hSeed_won), 3), "\n")
+
+
+# Start fresh from model_df (before we dropped anything)
+# Just filter to years with complete stat coverage
+
+model_df_clean <- model_df |>
+  filter(rowSums(is.na(across(starts_with("DIFF_")))) == 0)
+
+cat("Rows remaining:", nrow(model_df_clean), "\n")
+cat("Years remaining:\n")
+model_df_clean |> count(YEAR) |> print()
+cat("Missing values remaining:", sum(is.na(model_df_clean |> select(starts_with("DIFF_")))), "\n")
+cat("Higher seed win rate:", round(mean(model_df_clean$hSeed_won), 3), "\n")
+
+model_df |>
+  filter(YEAR >= 2013 & YEAR <= 2022) |>
+  select(starts_with("DIFF_")) |>
+  summarise(across(everything(), ~ sum(is.na(.)))) |>
+  pivot_longer(everything(), names_to = "col", values_to = "na_count") |>
+  filter(na_count > 0) |>
+  arrange(desc(na_count)) |>
+  print(n = 100)
+
+# Drop the 5 problematic columns
+cols_to_drop <- c(
+  "DIFF_KILL SHOTS PER GAME",
+  "DIFF_KILL SHOTS CONCEDED PER GAME", 
+  "DIFF_TOTAL KILL SHOTS",
+  "DIFF_TOTAL KILL SHOTS CONCEDED",
+  "DIFF_NPB RATING"
+)
+
+model_df_clean <- model_df |>
+  select(-all_of(cols_to_drop)) |>
+  filter(rowSums(is.na(across(starts_with("DIFF_")))) == 0)
+
+cat("Rows remaining:", nrow(model_df_clean), "\n")
+cat("Years remaining:\n")
+model_df_clean |> count(YEAR) |> print()
+cat("DIFF cols remaining:", sum(startsWith(colnames(model_df_clean), "DIFF_")), "\n")
+cat("Missing values:", sum(is.na(model_df_clean |> select(starts_with("DIFF_")))), "\n")
+cat("Higher seed win rate:", round(mean(model_df_clean$hSeed_won), 3), "\n")
+
+saveRDS(model_df_clean, "model_df_clean.rds")
