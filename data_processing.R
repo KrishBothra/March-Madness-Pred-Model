@@ -113,6 +113,8 @@ combined_data <- evanMiya |>
   left_join(rppf_ratings,       by = c("TEAM", "YEAR")) |>
   left_join(resumes,            by = c("TEAM", "YEAR"))
 
+write.csv(combined_data, "March-Madness/combined_data.csv", row.names = FALSE)
+
 
 matchups_enriched <- matchups |>
   left_join(combined_data, by = c("hSeedTeam" = "TEAM", "YEAR" = "YEAR")) |>
@@ -122,5 +124,8 @@ matchups_enriched <- matchups |>
   left_join(combined_data, by = c("lSeedTeam" = "TEAM", "YEAR" = "YEAR"),
             suffix = c("", "_l")) |>
   rename_with(~ paste0("l_", .), .cols = ends_with("_l"))
+
+
+
 
 
