@@ -1,13 +1,4 @@
-results_2024 <- model_df_clean |>
-  filter(YEAR == 2024) |>          # <-- change this to match test_year
-  select(hSeedTeam, lSeedTeam, hSeed, lSeed, `CURRENT ROUND`, hSeed_won) |>
-  mutate(
-    Pred_Prob     = round(final_probs_lo, 4),
-    Pred_Win      = ifelse(final_probs_lo >= 0.55, 1, 0),
-    Correct       = ifelse(Pred_Win == hSeed_won, 1, 0),
-    Actual_Result = ifelse(hSeed_won == 1, "Favored Won", "Upset")
-  )
-# ── Then run the full multi-year validation ───────────────────────────────────
+# ── validate_year: returns both summary + game-level results ──────────────────
 validate_year <- function(test_yr) {
   
   cat("Validating year:", test_yr, "\n")
@@ -34,7 +25,6 @@ validate_year <- function(test_yr) {
     early_stopping_rounds = 100, verbose = 0
   )
   
-  # Stacked logistic regression
   lr_train <- tibble(
     xgb_prob  = predict(xgb_lo, dtrain_lo),
     seed_diff = X_train_lo[, "SEED_DIFF"],
@@ -47,33 +37,61 @@ validate_year <- function(test_yr) {
     wab_diff  = X_test_lo[, "DIFF_WAB"]
   )
   
-  lr_lo     <- glm(y ~ xgb_prob + seed_diff + wab_diff,
-                   data = lr_train, family = binomial)
+  lr_lo       <- glm(y ~ xgb_prob + seed_diff + wab_diff,
+                     data = lr_train, family = binomial)
   final_probs <- predict(lr_lo, lr_test, type = "response")
   
-  # Metrics
+  # ── Summary metrics ──
   n_upsets    <- sum(y_test_lo == 0)
   upset_calls <- sum(ifelse(final_probs < 0.55, 1, 0) == 1 & y_test_lo == 0)
   
-  tibble(
+  summary_row <- tibble(
     year         = test_yr,
     games        = length(y_test_lo),
     accuracy     = round(mean(ifelse(final_probs >= 0.55, 1, 0) == y_test_lo), 3),
     upset_recall = round(ifelse(n_upsets > 0, upset_calls / n_upsets, NA), 3),
     brier        = round(mean((final_probs - y_test_lo)^2), 4),
     brier_naive  = round(mean((rep(0.70, length(y_test_lo)) - y_test_lo)^2), 4),
-    beats_naive  = mean((final_probs - y_test_lo)^2) < 
-      mean((rep(0.70, length(y_test_lo)) - y_test_lo)^2)
+    beats_naive  = brier < brier_naive   # <-- reference the already-computed columns
   )
+  
+  # ── Game-level results ──
+  game_results <- model_df_clean |>
+    filter(YEAR == test_yr) |>
+    select(hSeedTeam, lSeedTeam, hSeed, lSeed, `CURRENT ROUND`, hSeed_won) |>
+    mutate(
+      year          = test_yr,
+      Pred_Prob     = round(final_probs, 4),
+      Pred_Win      = ifelse(final_probs >= 0.55, 1, 0),
+      Correct       = ifelse(Pred_Win == hSeed_won, 1, 0),
+      Actual_Result = ifelse(hSeed_won == 1, "Favored Won", "Upset")
+    )
+  
+  list(summary = summary_row, games = game_results)
 }
-# Run for all 12 years
+
+# ── Run for all years ─────────────────────────────────────────────────────────
 all_years <- model_df_clean |> distinct(YEAR) |> pull(YEAR)
-validation_summary <- map_dfr(all_years, validate_year)
+all_results <- map(all_years, validate_year)
+
+# ── Extract summary and game tables separately ────────────────────────────────
+validation_summary <- map_dfr(all_results, "summary")
+all_game_results   <- map_dfr(all_results, "games")
+
+# ── Print summary ─────────────────────────────────────────────────────────────
 print(validation_summary, n = 20)
 cat("\n── Summary ──────────────────────────────────────────────\n")
 cat("Avg accuracy:     ", round(mean(validation_summary$accuracy), 3), "\n")
 cat("Avg upset recall: ", round(mean(validation_summary$upset_recall), 3), "\n")
 cat("Avg Brier:        ", round(mean(validation_summary$brier), 4), "\n")
 cat("Avg naive Brier:  ", round(mean(validation_summary$brier_naive), 4), "\n")
-cat("Beat naive:       ", sum(validation_summary$beats_naive), 
+cat("Beat naive:       ", sum(validation_summary$beats_naive),
     "out of", nrow(validation_summary), "years\n")
+
+# ── Access any single year's game results ────────────────────────────────────
+results_2024 <- all_game_results |> filter(year == 2024)
+print(results_2024)
+
+# ── Save everything ───────────────────────────────────────────────────────────
+write.csv(validation_summary, "March-Madness/validation_summary.csv", row.names = FALSE)
+write.csv(all_game_results,   "March-Madness/all_game_results.csv",   row.names = FALSE)
