@@ -207,33 +207,6 @@ model_df |>
   print(n = 40)
 
 
-
-# Step 2: Drop columns that are missing too much data across ALL years
-# (Kill Shots, NPB Rating — not worth keeping if they're missing 40%+ of rows)
-# cols_to_drop <- na_summary |>
-#   filter(na_count > 200) |>  # drop any col missing more than 200 rows
-#   pull(col)
-# 
-# cat("Dropping", length(cols_to_drop), "columns due to too many NAs:\n")
-# print(cols_to_drop)
-# 
-# model_df_clean <- model_df |>
-#   select(-all_of(cols_to_drop))
-# 
-# # Step 3: Drop years where stats weren't available
-# # Keep only years where we have complete coverage
-# model_df_clean <- model_df_clean |>
-#   filter(rowSums(is.na(across(starts_with("DIFF_")))) == 0)
-# 
-# cat("Rows remaining:", nrow(model_df_clean), "\n")
-# cat("Years remaining:\n")
-# model_df_clean |> count(YEAR) |> print()
-# cat("Higher seed win rate:", round(mean(model_df_clean$hSeed_won), 3), "\n")
-
-
-# Start fresh from model_df (before we dropped anything)
-# Just filter to years with complete stat coverage
-
 model_df_clean <- model_df |>
   filter(rowSums(is.na(across(starts_with("DIFF_")))) == 0)
 
