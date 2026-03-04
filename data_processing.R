@@ -8,7 +8,7 @@ library(dplyr)
 
 # 1. Set the path to your folder
 
-folder_path <- "March-Madness/march-madness-data"
+folder_path <- "march-madness-data"
 file_paths <- list.files(path = folder_path, pattern = "\\.csv$", full.names = TRUE)
 file_names <- tools::file_path_sans_ext(basename(file_paths))
 clean_names <- gsub("[ -]", "_", file_names)
@@ -18,10 +18,11 @@ names(my_data_list) <- clean_names
 list2env(my_data_list, envir = .GlobalEnv)
 
 
-matchups <- read.csv("March-Madness/march-madness-data/Tournament Matchups.csv", check.names = FALSE)
+matchups <- read.csv("march-madness-data/Tournament Matchups.csv", check.names = FALSE)
 
-Barttorvik_Away |> 
-  select(TEAM)
+unique_teams_vector <- unique(matchups$TEAM)
+
+write.csv(unique_teams_vector, "March-Madness/unique_teams_vector.csv", row.names = FALSE)
 
 matchups <- matchups |> 
   mutate(
@@ -52,9 +53,35 @@ matchups<-matchups |>
   ) |> 
   select(-TEAM_A, -TEAM_B, -SEED_A, -SEED_B, -SCORE_A, -SCORE_B)
 
-matchups |> 
-  select(TEAM)
+#EVANMIYA
 
+evanMiya <- read.csv("march-madness-data/EvanMiya.csv", check.names = FALSE)
 
+unique_teams_vector_evanMiya <- unique(evanMiya$TEAM)
 
+write.csv(unique_teams_vector_evanMiya, "March-Madness/unique_teams_vector_evanMiya.csv", row.names = FALSE)
+
+#KENPOM
+
+kenpom_torvik <- read.csv("march-madness-data/KenPom Barttorvik.csv", check.names = FALSE)
+
+unique_teams_vector_kenpom <- unique(kenpom_torvik$TEAM)
+
+write.csv(unique_teams_vector_kenpom, "March-Madness/unique_teams_vector_kenpom.csv", row.names = FALSE)
+
+#Team Results
+
+team_results <- read.csv("march-madness-data/Team Results.csv", check.names = FALSE)
+
+unique_teams_vector_team_results <- unique(team_results$TEAM)
+
+write.csv(unique_teams_vector_team_results, "March-Madness/unique_teams_vector_team_results.csv", row.names = FALSE)
+
+#Shooting Splits
+
+shooting_splits <- read.csv("march-madness-data/Shooting Splits.csv", check.names = FALSE)
+
+unique_teams_vector_shooting_splits <- unique(shooting_splits$TEAM)
+
+write.csv(unique_teams_vector_shooting_splits, "March-Madness/unique_teams_vector_shooting_splits.csv", row.names = FALSE)
 
