@@ -108,10 +108,14 @@ write.csv(unique_teams_vector_resumes, "March-Madness/unique_teams_vector_resume
 #*************************************************************************************************************************************
 
 combined_data <- evanMiya |>
-  left_join(kenpom_torvik,      by = c("TEAM", "YEAR")) |>
-  left_join(shooting_splits,    by = c("TEAM", "YEAR")) |>
-  left_join(rppf_ratings,       by = c("TEAM", "YEAR")) |>
-  left_join(resumes,            by = c("TEAM", "YEAR"))
+  left_join(kenpom_torvik,   by = c("TEAM", "YEAR")) |>
+  left_join(shooting_splits, by = c("TEAM", "YEAR")) |>
+  left_join(rppf_ratings,    by = c("TEAM", "YEAR")) |>
+  left_join(resumes,         by = c("TEAM", "YEAR")) |>
+  left_join(
+    team_results |> select(TEAM, PAKE, PASE, `WIN%`, F4, CHAMP, `F4%`, `CHAMP%`),
+    by = "TEAM"
+  )
 
 write.csv(combined_data, "March-Madness/combined_data.csv", row.names = FALSE)
 
@@ -246,3 +250,14 @@ cat("Missing values:", sum(is.na(model_df_clean |> select(starts_with("DIFF_")))
 cat("Higher seed win rate:", round(mean(model_df_clean$hSeed_won), 3), "\n")
 
 saveRDS(model_df_clean, "model_df_clean.rds")
+
+combined_data |> 
+  filter(YEAR == 2025) |> 
+  select(TEAM, PAKE, PASE, Q1_W = `Q1 W`) |> 
+  filter(is.na(PAKE) | is.na(Q1_W))
+
+# See all columns in your source datasets
+# cat("=== Team Results ===\n");    print(colnames(team_results))
+# cat("=== Resumes ===\n");         print(colnames(resumes))
+# cat("=== KenPom/Torvik ===\n");   print(colnames(kenpom_torvik))
+# cat("=== EvanMiya ===\n");        print(colnames(evanMiya))

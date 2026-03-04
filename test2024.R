@@ -89,8 +89,19 @@ cat("Beat naive:       ", sum(validation_summary$beats_naive),
     "out of", nrow(validation_summary), "years\n")
 
 # ── Access any single year's game results ────────────────────────────────────
-results_2024 <- all_game_results |> filter(year == 2024)
+results_2024 <- all_game_results |> filter(year == 2023)
 print(results_2024)
+
+results_2024 |>
+  group_by(Correct) |> 
+  summarise(
+    count = n(),
+  )
+
+# Did the new features make it through the correlation filter?
+colnames(diff_clean) |> str_subset("BARTHAG|PAKE|PASE|Q1|TOV|OREB")
+
+# Where do they rank in importance after retraining?
 
 # ── Save everything ───────────────────────────────────────────────────────────
 write.csv(validation_summary, "March-Madness/validation_summary.csv", row.names = FALSE)

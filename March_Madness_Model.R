@@ -25,6 +25,7 @@ colnames(diff_clean) <- colnames(diff_clean) |>
 
 # ── Step 2: Define key stats BEFORE using them ────────────────────────────────
 key_stats <- c(
+  # Your original stats
   "DIFF_WAB",
   "DIFF_BADJ_O",
   "DIFF_KADJ_D",
@@ -43,9 +44,35 @@ key_stats <- c(
   "DIFF_K_OFF",
   "DIFF_AVG_HGT",
   "DIFF_FTPCT",
-  "DIFF_STRDE"
+  "DIFF_STRDE",
+  
+  # New: KenPom untapped
+  "DIFF_BARTHAG",
+  "DIFF_TOV_PCT",
+  "DIFF_TOV_PCTD",
+  "DIFF_OREB_PCT",
+  "DIFF_DREB_PCT",
+  "DIFF_3PTR",
+  "DIFF_2PTR",
+  "DIFF_PPPO",
+  "DIFF_PPPD",
+  
+  # New: Resume quality wins
+  "DIFF_Q1_W",
+  "DIFF_Q2_W",
+  "DIFF_Q1_PLUS_Q2_W",
+  "DIFF_Q3_Q4_L",
+  "DIFF_PLUS_500",
+  
+  # New: Historical tournament pedigree
+  "DIFF_PAKE",
+  "DIFF_PASE",
+  "DIFF_F4_PCT",
+  "DIFF_CHAMP_PCT"
 )
 # Note: removed DIFF_EFG_PCT and duplicate DIFF_EXP from your original list
+
+
 
 # ── Step 3: Verify all key stats exist ────────────────────────────────────────
 missing_stats <- key_stats[!key_stats %in% colnames(diff_clean)]
@@ -170,3 +197,11 @@ test_lo <- train_data_lean |>
 
 cat("Test year games:", nrow(test_lo), "\n")
 cat("Train games:", nrow(train_lo), "\n")
+
+imp <- xgb.importance(model = xgb_model_lean)
+xgb.plot.importance(imp, top_n = 20)
+print(imp)
+
+# 2. Check what got dropped by the correlation filter 
+# (to make sure nothing valuable was removed)
+colnames(diff_only)[high_cor]
