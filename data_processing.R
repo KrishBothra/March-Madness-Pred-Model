@@ -85,3 +85,42 @@ unique_teams_vector_shooting_splits <- unique(shooting_splits$TEAM)
 
 write.csv(unique_teams_vector_shooting_splits, "March-Madness/unique_teams_vector_shooting_splits.csv", row.names = FALSE)
 
+#RPPF Ratings
+rppf_ratings <- read.csv("march-madness-data/RPPF Ratings.csv", check.names = FALSE)
+
+unique_teams_vector_rppf_ratings <- unique(rppf_ratings$TEAM)
+
+write.csv(unique_teams_vector_rppf_ratings, "March-Madness/unique_teams_vector_rppf_ratings.csv", row.names = FALSE)
+
+#Seed Results
+
+seed_results <- read.csv("march-madness-data/Seed Results.csv", check.names = FALSE)
+
+#Resumes
+
+resumes <- read.csv("march-madness-data/Resumes.csv", check.names = FALSE)
+
+unique_teams_vector_resumes <- unique(resumes$TEAM)
+
+write.csv(unique_teams_vector_resumes, "March-Madness/unique_teams_vector_resumes.csv", row.names = FALSE)
+
+
+#*************************************************************************************************************************************
+
+combined_data <- evanMiya |>
+  left_join(kenpom_torvik,      by = c("TEAM", "YEAR")) |>
+  left_join(shooting_splits,    by = c("TEAM", "YEAR")) |>
+  left_join(rppf_ratings,       by = c("TEAM", "YEAR")) |>
+  left_join(resumes,            by = c("TEAM", "YEAR"))
+
+
+matchups_enriched <- matchups |>
+  left_join(combined_data, by = c("hSeedTeam" = "TEAM", "YEAR" = "YEAR")) |>
+  rename_with(~ paste0("h_", .), .cols = !c(Game_ID, YEAR, `CURRENT ROUND`, 
+                                            hSeedTeam, lSeedTeam, hSeed, lSeed,
+                                            hSeedScore, lSeedScore, Winner, Loser)) |>
+  left_join(combined_data, by = c("lSeedTeam" = "TEAM", "YEAR" = "YEAR"),
+            suffix = c("", "_l")) |>
+  rename_with(~ paste0("l_", .), .cols = ends_with("_l"))
+
+
