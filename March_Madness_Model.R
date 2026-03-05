@@ -4,6 +4,7 @@ library(xgboost)
 library(dplyr)
 library(vip)
 
+
 # ── Step 1: Correlation filter ────────────────────────────────────────────────
 diff_only  <- model_df_clean |> select(starts_with("DIFF_"))
 cor_matrix <- cor(diff_only, use = "complete.obs")
@@ -124,3 +125,4 @@ lr_model <- glm(y ~ xgb_prob + seed_diff + wab_diff + round,
 imp <- xgb.importance(model = xgb_model_lean)
 xgb.plot.importance(imp)
 #vip(xgb_model_lean, geom = "col")
+

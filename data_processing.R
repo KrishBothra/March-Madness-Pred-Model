@@ -99,12 +99,25 @@ cols_to_drop <- c(
   "DIFF_KILL SHOTS PER GAME",
   "DIFF_KILL SHOTS CONCEDED PER GAME",
   "DIFF_TOTAL KILL SHOTS",
-  "DIFF_TOTAL KILL SHOTS CONCEDED",
-  "DIFF_NPB RATING"
+  "DIFF_TOTAL KILL SHOTS CONCEDED"
 )
+
+
+
+
+
+model_df |>
+  filter(YEAR >= 2015) |>
+  select(YEAR, starts_with("DIFF_")) |>
+  summarise(across(starts_with("DIFF_"), ~ sum(is.na(.)))) |>
+  pivot_longer(everything(), names_to = "column", values_to = "na_count") |>
+  filter(na_count > 0) |>
+  arrange(desc(na_count)) |>
+  print(n = Inf)
 
 model_df_clean <- model_df |>
   select(-all_of(cols_to_drop)) |>
-  filter(rowSums(is.na(across(starts_with("DIFF_")))) == 0)
+  filter(YEAR >= 2015) |>
+  mutate(across(starts_with("DIFF_"), ~ replace_na(., 0)))
 
-saveRDS(model_df_clean, "model_df_clean.rds")
+# saveRDS(model_df_clean, "model_df_clean.rds")
