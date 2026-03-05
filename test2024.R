@@ -19,15 +19,16 @@ validate_year <- function(test_yr) {
       eta              = 0.005,
       max_depth        = 2,
       min_child_weight = 10,
-      subsample        = 0.7,
-      colsample_bytree = 0.7
+      subsample        = 0.6,
+      colsample_bytree = 0.6,
+      seed             = 42
     ),
     data                  = dtrain_lo,
     nrounds               = 1000,
     evals                 = list(train = dtrain_lo, test = dtest_lo),
     early_stopping_rounds = 100,
     verbose               = 0
-  )
+    )
   
   lr_train <- tibble(
     xgb_prob  = predict(xgb_lo, dtrain_lo),
@@ -84,7 +85,7 @@ all_game_results   <- map_dfr(all_results, "games")
 
 #**************************************************************************************************************************
 
-results_2024 <- all_game_results |> filter(year == 2025)
+results_2024 <- all_game_results |> filter(year == 2023)
 print(results_2024)
 
 results_2024 |>
@@ -105,5 +106,41 @@ cat("Beat naive:      ", sum(validation_summary$beats_naive),
 write.csv(validation_summary, "March-Madness/validation_summary.csv", row.names = FALSE)
 write.csv(all_game_results,   "March-Madness/all_game_results.csv",   row.names = FALSE)
   
-
-
+# ── Tuning grid ───────────────────────────────────────────────────────────────
+# tune_grid <- expand.grid(
+#   eta              = c(0.003, 0.005, 0.008),
+#   max_depth        = c(2, 3),
+#   min_child_weight = c(8, 10, 12),
+#   subsample        = c(0.6, 0.7, 0.8),
+#   colsample_bytree = c(0.6, 0.7, 0.8)
+# )
+# 
+# cat("Total combinations:", nrow(tune_grid), "\n")
+# 
+# tune_results <- pmap_dfr(tune_grid, function(eta, max_depth, min_child_weight,
+#                                              subsample, colsample_bytree) {
+#   xgb_params <<- list(
+#     objective        = "binary:logistic",
+#     eval_metric      = "auc",
+#     eta              = eta,
+#     max_depth        = max_depth,
+#     min_child_weight = min_child_weight,
+#     subsample        = subsample,
+#     colsample_bytree = colsample_bytree,
+#     seed             = 42
+#   )
+#   
+#   results <- map(all_years, validate_year)
+#   summary <- map_dfr(results, "summary")
+#   
+#   tibble(
+#     eta, max_depth, min_child_weight, subsample, colsample_bytree,
+#     avg_brier        = round(mean(summary$brier), 4),
+#     avg_accuracy     = round(mean(summary$accuracy), 3),
+#     avg_upset_recall = round(mean(summary$upset_recall), 3),
+#     beats_naive      = sum(summary$beats_naive)
+#   )
+# })
+# 
+# tune_results |> arrange(avg_brier) |> head(10)
+# 
