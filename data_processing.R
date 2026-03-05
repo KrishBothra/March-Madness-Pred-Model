@@ -38,12 +38,17 @@ team_results  <- read.csv("march-madness-data/Team Results.csv",       check.nam
 shooting_splits <- read.csv("march-madness-data/Shooting Splits.csv",  check.names = FALSE)
 rppf_ratings  <- read.csv("march-madness-data/RPPF Ratings.csv",       check.names = FALSE)
 resumes       <- read.csv("march-madness-data/Resumes.csv",            check.names = FALSE)
+zrating       <- read.csv("march-madness-data/Z Rating Teams.csv",            check.names = FALSE)
+
+zrating <- zrating |> 
+  filter(TYPE == 'NEW')
 
 combined_data <- evanMiya |>
   left_join(kenpom_torvik,   by = c("TEAM", "YEAR")) |>
   left_join(shooting_splits, by = c("TEAM", "YEAR")) |>
   left_join(rppf_ratings,    by = c("TEAM", "YEAR")) |>
   left_join(resumes,         by = c("TEAM", "YEAR")) |>
+  left_join(zrating,         by = c("TEAM", "YEAR")) |>
   left_join(
     team_results |> select(TEAM, PAKE, PASE, `WIN%`, F4, CHAMP, `F4%`, `CHAMP%`),
     by = "TEAM"

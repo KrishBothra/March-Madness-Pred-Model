@@ -2,6 +2,9 @@ library(tidyverse)
 library(caret)
 library(xgboost)
 library(dplyr)
+library(vip)
+library(probably)
+
 
 # ── Step 1: Correlation filter ────────────────────────────────────────────────
 diff_only  <- model_df_clean |> select(starts_with("DIFF_"))
@@ -26,15 +29,19 @@ key_stats <- c(
   "DIFF_OREB_PCT", "DIFF_DREB_PCT", "DIFF_3PTR", "DIFF_2PTR",
   "DIFF_PPPO", "DIFF_PPPD",
   "DIFF_Q1_W", "DIFF_Q2_W", "DIFF_Q1_PLUS_Q2_W", "DIFF_Q3_Q4_L",
-  "DIFF_PLUS_500", "DIFF_PAKE", "DIFF_PASE", "DIFF_F4_PCT", "DIFF_CHAMP_PCT"
+  "DIFF_PLUS_500", "DIFF_PAKE", "DIFF_PASE", "DIFF_F4_PCT", "DIFF_CHAMP_PCT", "DIFF_Z_RATING",
+  "DIFF_Z_OFF",
+  "DIFF_Z_DEF"
 )
 
 # ── Step 3: Build lean training data ──────────────────────────────────────────
 train_data_lean <- bind_cols(
   model_df_clean |> select(hSeed_won),
   model_df_clean |> transmute(SEED_DIFF = lSeed - hSeed),
+  model_df_clean |> select(`CURRENT ROUND`),
   diff_clean |> select(any_of(key_stats))
 ) |>
+  rename(ROUND = `CURRENT ROUND`) |>
   mutate(hSeed_won = factor(hSeed_won, levels = c(0, 1),
                             labels = c("upset", "favored")))
 
@@ -86,4 +93,6 @@ lr_model <- glm(y ~ xgb_prob + seed_diff + wab_diff,
 
 # ── Step 7: Variable importance ───────────────────────────────────────────────
 imp <- xgb.importance(model = xgb_model_lean)
-xgb.plot.importance(imp, top_n = 15)
+xgb.plot.importance(imp, top_n = 100)
+
+vip(xgb_model_lean, geom = "col")
