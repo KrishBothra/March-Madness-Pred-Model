@@ -3,3 +3,5 @@
 .RData
 .Ruserdata
 .DS_Store
+all_game_results.csv
+validation_summary.csv
