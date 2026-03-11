@@ -101,7 +101,7 @@ xgb_params <- list(
 xgb_model_lean <- xgb.train(
   params                = xgb_params,
   data                  = dtrain,
-  nrounds               = 1000,
+  nrounds               = 1000, 
   evals                 = list(train = dtrain, test = dtest),
   early_stopping_rounds = 100,
   verbose               = 25

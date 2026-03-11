@@ -85,7 +85,7 @@ all_game_results   <- map_dfr(all_results, "games")
 
 #**************************************************************************************************************************
 
-results_2024 <- all_game_results |> filter(year == 2025)
+results_2024 <- all_game_results |> filter(year == 2024)
 print(results_2024)
 
 results_2024 |>
