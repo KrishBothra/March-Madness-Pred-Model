@@ -1,4 +1,3 @@
-# ── validate_year: leave-one-year-out cross-validation ───────────────────────
 validate_year <- function(test_yr) {
   
   train_lo <- train_data_lean |> filter(model_df_clean$YEAR != test_yr)
@@ -12,44 +11,34 @@ validate_year <- function(test_yr) {
   dtrain_lo <- xgb.DMatrix(data = X_train_lo, label = y_train_lo)
   dtest_lo  <- xgb.DMatrix(data = X_test_lo,  label = y_test_lo)
   
-  # XGBoost receives ROUND in its feature matrix (as trained)
   xgb_lo <- xgb.train(
     params = list(
       objective        = "binary:logistic",
       eval_metric      = "auc",
       eta              = 0.01,
       max_depth        = 3,
-      min_child_weight = 10,
-      subsample        = 0.5,
-      colsample_bytree = 0.5,
+      min_child_weight = 8,    # was 5
+      subsample        = 0.8,  # was 0.7
+      colsample_bytree = 0.7,  # was 0.6
       seed             = 42
     ),
     data                  = dtrain_lo,
-    nrounds               =1500,
+    nrounds               = 1500,
     evals                 = list(train = dtrain_lo, test = dtest_lo),
     early_stopping_rounds = 100,
-    verbose               = 25
+    verbose               = 0       # silenced — runs for every year
   )
   
-  # LR stacker: ROUND included, matching the prediction script exactly
-  lr_train <- tibble(
-    xgb_prob  = predict(xgb_lo, dtrain_lo),
-    seed_diff = X_train_lo[, "SEED_DIFF"],
-    wab_diff  = X_train_lo[, "DIFF_WAB"],
-    round     = X_train_lo[, "ROUND"],
-    y         = y_train_lo
+  # ── Platt scaling (matches main training script) ──────────────────────────
+  platt_train <- tibble(
+    xgb_prob = predict(xgb_lo, dtrain_lo),
+    y        = y_train_lo
   )
-  lr_test <- tibble(
-    xgb_prob  = predict(xgb_lo, dtest_lo),
-    seed_diff = X_test_lo[, "SEED_DIFF"],
-    wab_diff  = X_test_lo[, "DIFF_WAB"],
-    round     = X_test_lo[, "ROUND"]
-  )
+  platt_lo <- glm(y ~ xgb_prob, data = platt_train, family = binomial)
   
-  lr_lo <- glm(y ~ xgb_prob + seed_diff + wab_diff + round,
-               data = lr_train, family = binomial)
-  
-  final_probs <- predict(lr_lo, lr_test, type = "response")
+  final_probs <- predict(platt_lo,
+                         tibble(xgb_prob = predict(xgb_lo, dtest_lo)),
+                         type = "response")
   
   n_upsets    <- sum(y_test_lo == 0)
   upset_calls <- sum(ifelse(final_probs < 0.55, 1, 0) == 1 & y_test_lo == 0)
@@ -79,13 +68,17 @@ validate_year <- function(test_yr) {
 }
 
 all_years   <- model_df_clean |> distinct(YEAR) |> pull(YEAR)
+all_years1 <- model_df_clean |> 
+  distinct(YEAR) |> 
+  pull(YEAR) |>
+  setdiff(c(2017, 2023))
 all_results <- map(all_years, validate_year)
 
 validation_summary <- map_dfr(all_results, "summary")
 all_game_results   <- map_dfr(all_results, "games")
 
 # ── Results for a specific year ───────────────────────────────────────────────
-results_2024 <- all_game_results |> filter(year == 2024)
+results_2024 <- all_game_results |> filter(year == 2023)
 print(results_2024)
 
 results_2024 |>
@@ -103,40 +96,82 @@ cat("Beat naive:      ", sum(validation_summary$beats_naive),
 write.csv(validation_summary, "March-Madness/validation_summary.csv", row.names = FALSE)
 write.csv(all_game_results,   "March-Madness/all_game_results.csv",   row.names = FALSE)
 
-# ── Tuning grid (uncomment to run) ────────────────────────────────────────────
 # tune_grid <- expand.grid(
-#   eta              = c(0.003, 0.005, 0.008),
-#   max_depth        = c(2, 3),
-#   min_child_weight = c(8, 10, 12),
+#   eta              = c(0.005, 0.01, 0.02),
+#   max_depth        = c(3, 4),
+#   min_child_weight = c(3, 5, 8),
 #   subsample        = c(0.6, 0.7, 0.8),
-#   colsample_bytree = c(0.6, 0.7, 0.8)
+#   colsample_bytree = c(0.5, 0.6, 0.7)
 # )
-#
+# 
 # cat("Total combinations:", nrow(tune_grid), "\n")
-#
+# 
 # tune_results <- pmap_dfr(tune_grid, function(eta, max_depth, min_child_weight,
 #                                              subsample, colsample_bytree) {
-#   xgb_params <<- list(
-#     objective        = "binary:logistic",
-#     eval_metric      = "auc",
-#     eta              = eta,
-#     max_depth        = max_depth,
-#     min_child_weight = min_child_weight,
-#     subsample        = subsample,
-#     colsample_bytree = colsample_bytree,
-#     seed             = 42
-#   )
-#
-#   results <- map(all_years, validate_year)
-#   summary <- map_dfr(results, "summary")
-#
+#   
+#   results <- map(all_years, function(test_yr) {
+#     
+#     train_lo <- train_data_lean |> filter(model_df_clean$YEAR != test_yr)
+#     test_lo  <- train_data_lean |> filter(model_df_clean$YEAR == test_yr)
+#     
+#     X_train_lo <- train_lo |> select(-hSeed_won) |> as.matrix()
+#     X_test_lo  <- test_lo  |> select(-hSeed_won) |> as.matrix()
+#     y_train_lo <- ifelse(train_lo$hSeed_won == "favored", 1, 0)
+#     y_test_lo  <- ifelse(test_lo$hSeed_won  == "favored", 1, 0)
+#     
+#     dtrain_lo <- xgb.DMatrix(data = X_train_lo, label = y_train_lo)
+#     dtest_lo  <- xgb.DMatrix(data = X_test_lo,  label = y_test_lo)
+#     
+#     xgb_lo <- xgb.train(
+#       params = list(
+#         objective        = "binary:logistic",
+#         eval_metric      = "auc",
+#         eta              = eta,
+#         max_depth        = max_depth,
+#         min_child_weight = min_child_weight,
+#         subsample        = subsample,
+#         colsample_bytree = colsample_bytree,
+#         seed             = 42
+#       ),
+#       data                  = dtrain_lo,
+#       nrounds               = 1500,
+#       evals                 = list(train = dtrain_lo, test = dtest_lo),
+#       early_stopping_rounds = 100,
+#       verbose               = 0
+#     )
+#     
+#     platt_lo <- glm(
+#       y ~ xgb_prob,
+#       data   = tibble(xgb_prob = predict(xgb_lo, dtrain_lo), y = y_train_lo),
+#       family = binomial
+#     )
+#     
+#     final_probs <- predict(platt_lo,
+#                            tibble(xgb_prob = predict(xgb_lo, dtest_lo)),
+#                            type = "response")
+#     
+#     tibble(
+#       brier       = mean((final_probs - y_test_lo)^2),
+#       brier_naive = mean((rep(0.70, length(y_test_lo)) - y_test_lo)^2),
+#       accuracy    = mean(ifelse(final_probs >= 0.55, 1, 0) == y_test_lo),
+#       beats_naive = brier < brier_naive
+#     )
+#   })
+#   
+#   summary <- bind_rows(results)
+#   
 #   tibble(
 #     eta, max_depth, min_child_weight, subsample, colsample_bytree,
 #     avg_brier        = round(mean(summary$brier), 4),
 #     avg_accuracy     = round(mean(summary$accuracy), 3),
-#     avg_upset_recall = round(mean(summary$upset_recall), 3),
-#     beats_naive      = sum(summary$beats_naive)
+#     beats_naive      = sum(summary$beats_naive),
+#     avg_brier_naive  = round(mean(summary$brier_naive), 4)
 #   )
 # })
-#
-# tune_results |> arrange(avg_brier) |> head(10)
+# 
+# tune_results |> arrange(avg_brier) |> head(20) |> print()
+# 
+# # Best params
+# best <- tune_results |> arrange(avg_brier) |> slice(1)
+# cat("\nBest params:\n")
+# print(best)

@@ -54,6 +54,8 @@ combined_data <- evanMiya |>
     by = "TEAM"
   )
 
+
+
 matchups_enriched <- matchups |>
   left_join(combined_data, by = c("hSeedTeam" = "TEAM", "YEAR" = "YEAR")) |>
   rename_with(~ paste0("h_", .), .cols = !c(Game_ID, YEAR, `CURRENT ROUND`,

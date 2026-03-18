@@ -63,6 +63,26 @@ key_stats <- c(
   #"DIFF_O_RATE", "DIFF_D_RATE", "DIFF_OPPONENT ADJUST", "DIFF_RELATIVE RATING"
 )
 
+key_stats1 <- c(
+  "DIFF_ELO",
+  "DIFF_WAB",
+  "DIFF_RESUME",
+  "DIFF_BADJ_T",
+  "DIFF_WINPCT.x",
+  "DIFF_FTR",
+  "DIFF_FTRD",
+  "DIFF_PPPO",
+  "DIFF_PPPD",
+  "DIFF_2PTPCT",
+  "DIFF_2PTPCTD",
+  "DIFF_3PTPCTD",
+  "DIFF_TOVPCT",
+  "DIFF_TOVPCTD",
+  "DIFF_TALENT",
+  "DIFF_EXP",
+  "DIFF_SCORING_MARGIN"
+)
+
 # ── Step 4: Build lean training data ──────────────────────────────────────────
 train_data_lean <- bind_cols(
   model_df_clean |> select(hSeed_won),
@@ -86,19 +106,25 @@ X_train <- train_set |> select(-hSeed_won) |> as.matrix()
 X_test  <- test_set  |> select(-hSeed_won) |> as.matrix()
 y_train <- ifelse(train_set$hSeed_won == "favored", 1, 0)
 y_test  <- ifelse(test_set$hSeed_won  == "favored", 1, 0)
+round_weights <- case_when(
+  train_set$ROUND <= 4  ~ 4,   # Elite 8 / Final Four
+  train_set$ROUND <= 8  ~ 3,   # Sweet 16
+  train_set$ROUND <= 16 ~ 2,   # Round of 32 close games
+  TRUE                  ~ 1    # R64
+)
 
-dtrain <- xgb.DMatrix(data = X_train, label = y_train)
+dtrain <- xgb.DMatrix(data = X_train, label = y_train, weight = round_weights)
 dtest  <- xgb.DMatrix(data = X_test,  label = y_test)
 
 set.seed(42)
 xgb_params <- list(
   objective        = "binary:logistic",
   eval_metric      = "auc",
-  eta              = 0.01,    # tuned: up from 0.005
-  max_depth        = 3,       # tuned: up from 2
-  min_child_weight = 10,      # unchanged
-  subsample        = 0.5,     # tuned: down from 0.6 — key driver of improvement
-  colsample_bytree = 0.5,     # tuned: down from 0.6
+  eta              = 0.01,
+  max_depth        = 3,
+  min_child_weight = 8,    # was 5
+  subsample        = 0.8,  # was 0.7
+  colsample_bytree = 0.7,  # was 0.6
   seed             = 42
 )
 
@@ -111,22 +137,27 @@ xgb_model_lean <- xgb.train(
   verbose               = 25
 )
 
-# ── Step 7: Stack XGBoost with logistic regression ───────────────────────────
+# ── Step 7: Platt scaling calibration ────────────────────────────────────────
 xgb_probs_train <- predict(xgb_model_lean, dtrain)
+xgb_probs_test  <- predict(xgb_model_lean, dtest)
 
-lr_data_train <- tibble(
-  xgb_prob  = xgb_probs_train,
-  seed_diff = X_train[, "SEED_DIFF"],
-  wab_diff  = X_train[, "DIFF_WAB"],
-  round     = X_train[, "ROUND"],
-  y         = y_train
+# Fit Platt scaler on training set
+platt_data <- tibble(
+  xgb_prob = xgb_probs_train,
+  y        = y_train
 )
+platt_model <- glm(y ~ xgb_prob, data = platt_data, family = binomial)
+summary(platt_model)
 
-#lr_model <- glm(y ~ xgb_prob + seed_diff + wab_diff + round,
-                #data = lr_data_train, family = binomial)
-
-lr_model <- glm(y ~ xgb_prob, data = lr_data_train, family = binomial)
-summary(lr_model)
+# Sanity check on test set
+platt_probs_test <- predict(platt_model, tibble(xgb_prob = xgb_probs_test), 
+                            type = "response")
+cat("Test set calibration check:\n")
+tibble(pred = platt_probs_test, actual = y_test) |>
+  mutate(bucket = cut(pred, breaks = seq(0, 1, 0.1))) |>
+  group_by(bucket) |>
+  summarise(mean_pred = mean(pred), actual_rate = mean(actual), n = n()) |>
+  print()
 
 
 # ── Step 8: Variable importance ───────────────────────────────────────────────

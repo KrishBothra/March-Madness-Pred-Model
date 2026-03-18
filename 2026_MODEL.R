@@ -106,16 +106,13 @@ dpredict_2026 <- xgb.DMatrix(data = X_2026)
 
 xgb_probs_2026 <- predict(xgb_model_lean, dpredict_2026)
 
-lr_input_2026 <- tibble(
-  xgb_prob  = xgb_probs_2026,
-  seed_diff = X_2026[, "SEED_DIFF"],
-  wab_diff  = X_2026[, "DIFF_WAB"],
-  round     = X_2026[, "ROUND"]
-)
-
-final_probs_2026 <- predict(lr_model, lr_input_2026, type = "response")
+# Apply Platt scaling instead of LR stacker
+final_probs_2026 <- predict(platt_model, 
+                            tibble(xgb_prob = xgb_probs_2026), 
+                            type = "response")
 
 matchups_2026$Predictions_Raw <- round(final_probs_2026, 4)
+
 
 # ── 8. Injury adjustments (2026 confirmed absences) ──────────────────────────
 # Adjustments applied to the HigherSeed win probability:
@@ -141,7 +138,8 @@ injury_map <- tribble(
   "BYU",             0.07,
   "Clemson",         0.05,
   "Duke",            0.04,
-  "Michigan",        0.03
+  "Michigan",        0.03,
+  "Louisville",      0.06
 )
 
 apply_injury_adj <- function(higher, lower, raw_prob) {
@@ -191,7 +189,7 @@ matchups_2026 |>
 
 cat("\n--- Biggest potential upsets (model favors lower seed) ---\n")
 matchups_2026 |>
-  filter(Predictions < 0.45) |>
+  filter(Predictions < 0.5) |>
   arrange(Predictions) |>
   select(HigherSeed, HigherSeedNum, LowerSeed, LowerSeedNum, Predictions) |>
   head(15) |>
