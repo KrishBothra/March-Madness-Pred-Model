@@ -122,8 +122,12 @@ lr_data_train <- tibble(
   y         = y_train
 )
 
-lr_model <- glm(y ~ xgb_prob + seed_diff + wab_diff + round,
-                data = lr_data_train, family = binomial)
+#lr_model <- glm(y ~ xgb_prob + seed_diff + wab_diff + round,
+                #data = lr_data_train, family = binomial)
+
+lr_model <- glm(y ~ xgb_prob, data = lr_data_train, family = binomial)
+summary(lr_model)
+
 
 # ── Step 8: Variable importance ───────────────────────────────────────────────
 imp <- xgb.importance(model = xgb_model_lean)

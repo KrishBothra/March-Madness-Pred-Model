@@ -7,6 +7,28 @@ matchups_2026 <- read.csv("march-madness-data/2026_Potential_Matchups.csv",
                           check.names = FALSE)
 
 # ── 2. Pull 2026 team stats ───────────────────────────────────────────────────
+# ── Fix team name mismatches between combined_data and matchups CSV ────────────
+name_fix <- c(
+  "Iowa St."           = "Iowa St",
+  "Ohio St."           = "Ohio St",
+  "Michigan St."       = "Michigan St",
+  "Saint Mary's"       = "St Mary's CA",
+  "St. John's"         = "St John's",
+  "Queens"             = "Queens NC",
+  "Tennessee St."      = "Tennessee St",
+  "North Dakota St."   = "N Dakota St",
+  "Kennesaw St."       = "Kennesaw",
+  "Wright St."         = "Wright St",
+  "Utah St."           = "Utah St",
+  "McNeese St."        = "McNeese St",
+  "North Carolina St." = "NC State",
+  "Saint Louis"        = "St Louis",
+  "Prairie View A&M"   = "Prairie View"
+)
+
+combined_data <- combined_data |>
+  mutate(TEAM = recode(TEAM, !!!name_fix))
+
 stats_2026 <- combined_data |> filter(YEAR == 2026)
 cat("Teams with 2026 stats:", nrow(stats_2026), "\n")
 
