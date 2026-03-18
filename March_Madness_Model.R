@@ -35,7 +35,8 @@ key_stats <- c(
   "DIFF_ELO", "DIFF_RESUME", "DIFF_BADJ_T",
   "DIFF_NET_RPI", "DIFF_K_OFF", "DIFF_Z_RATING",
   "DIFF_Z_OFF", "DIFF_Z_DEF", "DIFF_R_SOS",
-  "DIFF_PAKE",
+  # DIFF_PAKE removed — legacy stat, does not update year-to-year,
+  # was dominating variable importance at ~0.32
   
   # Shooting — Four Factors
   "DIFF_EFGPCT",
@@ -57,6 +58,9 @@ key_stats <- c(
   
   # New engineered
   "DIFF_SCORING_MARGIN"
+  
+  #EvanMiya
+  #"DIFF_O_RATE", "DIFF_D_RATE", "DIFF_OPPONENT ADJUST", "DIFF_RELATIVE RATING"
 )
 
 # ── Step 4: Build lean training data ──────────────────────────────────────────
@@ -90,18 +94,18 @@ set.seed(42)
 xgb_params <- list(
   objective        = "binary:logistic",
   eval_metric      = "auc",
-  eta              = 0.005,
-  max_depth        = 2,
-  min_child_weight = 10,
-  subsample        = 0.6,
-  colsample_bytree = 0.6,
+  eta              = 0.01,    # tuned: up from 0.005
+  max_depth        = 3,       # tuned: up from 2
+  min_child_weight = 10,      # unchanged
+  subsample        = 0.5,     # tuned: down from 0.6 — key driver of improvement
+  colsample_bytree = 0.5,     # tuned: down from 0.6
   seed             = 42
 )
 
 xgb_model_lean <- xgb.train(
   params                = xgb_params,
   data                  = dtrain,
-  nrounds               = 1000, 
+  nrounds               = 1500,   # increased to give eta=0.01 room to converge
   evals                 = list(train = dtrain, test = dtest),
   early_stopping_rounds = 100,
   verbose               = 25
@@ -124,5 +128,3 @@ lr_model <- glm(y ~ xgb_prob + seed_diff + wab_diff + round,
 # ── Step 8: Variable importance ───────────────────────────────────────────────
 imp <- xgb.importance(model = xgb_model_lean)
 xgb.plot.importance(imp)
-#vip(xgb_model_lean, geom = "col")
-

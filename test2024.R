@@ -12,24 +12,26 @@ validate_year <- function(test_yr) {
   dtrain_lo <- xgb.DMatrix(data = X_train_lo, label = y_train_lo)
   dtest_lo  <- xgb.DMatrix(data = X_test_lo,  label = y_test_lo)
   
+  # XGBoost receives ROUND in its feature matrix (as trained)
   xgb_lo <- xgb.train(
     params = list(
       objective        = "binary:logistic",
       eval_metric      = "auc",
-      eta              = 0.005,
-      max_depth        = 2,
+      eta              = 0.01,
+      max_depth        = 3,
       min_child_weight = 10,
-      subsample        = 0.6,
-      colsample_bytree = 0.6,
+      subsample        = 0.5,
+      colsample_bytree = 0.5,
       seed             = 42
     ),
     data                  = dtrain_lo,
-    nrounds               = 1000,
+    nrounds               =1500,
     evals                 = list(train = dtrain_lo, test = dtest_lo),
     early_stopping_rounds = 100,
-    verbose               = 0
-    )
+    verbose               = 25
+  )
   
+  # LR stacker: ROUND included, matching the prediction script exactly
   lr_train <- tibble(
     xgb_prob  = predict(xgb_lo, dtrain_lo),
     seed_diff = X_train_lo[, "SEED_DIFF"],
@@ -48,7 +50,6 @@ validate_year <- function(test_yr) {
                data = lr_train, family = binomial)
   
   final_probs <- predict(lr_lo, lr_test, type = "response")
-  
   
   n_upsets    <- sum(y_test_lo == 0)
   upset_calls <- sum(ifelse(final_probs < 0.55, 1, 0) == 1 & y_test_lo == 0)
@@ -83,19 +84,15 @@ all_results <- map(all_years, validate_year)
 validation_summary <- map_dfr(all_results, "summary")
 all_game_results   <- map_dfr(all_results, "games")
 
-#**************************************************************************************************************************
-
+# ── Results for a specific year ───────────────────────────────────────────────
 results_2024 <- all_game_results |> filter(year == 2024)
 print(results_2024)
 
 results_2024 |>
-  group_by(Correct) |> 
-  summarise(
-    count = n(),
-  )
+  group_by(Correct) |>
+  summarise(count = n())
 
-# ── Run for all years ─────────────────────────────────────────────────────────
-
+# ── Summary across all years ──────────────────────────────────────────────────
 print(validation_summary, n = 20)
 cat("\nAvg accuracy:    ", round(mean(validation_summary$accuracy), 3), "\n")
 cat("Avg upset recall:", round(mean(validation_summary$upset_recall), 3), "\n")
@@ -105,8 +102,8 @@ cat("Beat naive:      ", sum(validation_summary$beats_naive),
 
 write.csv(validation_summary, "March-Madness/validation_summary.csv", row.names = FALSE)
 write.csv(all_game_results,   "March-Madness/all_game_results.csv",   row.names = FALSE)
-  
-# ── Tuning grid ───────────────────────────────────────────────────────────────
+
+# ── Tuning grid (uncomment to run) ────────────────────────────────────────────
 # tune_grid <- expand.grid(
 #   eta              = c(0.003, 0.005, 0.008),
 #   max_depth        = c(2, 3),
@@ -114,9 +111,9 @@ write.csv(all_game_results,   "March-Madness/all_game_results.csv",   row.names 
 #   subsample        = c(0.6, 0.7, 0.8),
 #   colsample_bytree = c(0.6, 0.7, 0.8)
 # )
-# 
+#
 # cat("Total combinations:", nrow(tune_grid), "\n")
-# 
+#
 # tune_results <- pmap_dfr(tune_grid, function(eta, max_depth, min_child_weight,
 #                                              subsample, colsample_bytree) {
 #   xgb_params <<- list(
@@ -129,10 +126,10 @@ write.csv(all_game_results,   "March-Madness/all_game_results.csv",   row.names 
 #     colsample_bytree = colsample_bytree,
 #     seed             = 42
 #   )
-#   
+#
 #   results <- map(all_years, validate_year)
 #   summary <- map_dfr(results, "summary")
-#   
+#
 #   tibble(
 #     eta, max_depth, min_child_weight, subsample, colsample_bytree,
 #     avg_brier        = round(mean(summary$brier), 4),
@@ -141,6 +138,5 @@ write.csv(all_game_results,   "March-Madness/all_game_results.csv",   row.names 
 #     beats_naive      = sum(summary$beats_naive)
 #   )
 # })
-# 
+#
 # tune_results |> arrange(avg_brier) |> head(10)
-# 

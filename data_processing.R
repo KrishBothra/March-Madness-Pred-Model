@@ -96,12 +96,12 @@ model_df <- bind_cols(
   mutate(hSeed_won = ifelse(Winner == hSeedTeam, 1L, 0L))
 
 cols_to_drop <- c(
-  "DIFF_KILL SHOTS PER GAME",
+  "DIFF_KILLSHOTS PER GAME",
   "DIFF_KILL SHOTS CONCEDED PER GAME",
   "DIFF_TOTAL KILL SHOTS",
-  "DIFF_TOTAL KILL SHOTS CONCEDED"
+  "DIFF_TOTAL KILL SHOTS CONCEDED",
+  "DIFF_KILLSHOTS MARGIN"
 )
-
 
 
 
@@ -117,7 +117,7 @@ model_df |>
 
 model_df_clean <- model_df |>
   select(-all_of(cols_to_drop)) |>
-  filter(YEAR >= 2015) |>
+  filter(YEAR >= 2015 & YEAR < 2026) |>
   mutate(across(starts_with("DIFF_"), ~ replace_na(., 0)))
 
 # saveRDS(model_df_clean, "model_df_clean.rds")
