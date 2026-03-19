@@ -20,7 +20,11 @@ validate_year <- function(test_yr) {
       min_child_weight = 8,    # was 5
       subsample        = 0.8,  # was 0.7
       colsample_bytree = 0.7,  # was 0.6
-      seed             = 42
+      seed             = 42,
+      monotone_constraints = setNames(
+        ifelse(colnames(X_train) == "DIFF_PAKE", 1, 0),
+        colnames(X_train)
+      )
     ),
     data                  = dtrain_lo,
     nrounds               = 1500,
@@ -28,6 +32,9 @@ validate_year <- function(test_yr) {
     early_stopping_rounds = 100,
     verbose               = 0       # silenced — runs for every year
   )
+  
+  imp <- xgb.importance(model = xgb_lo)
+  imp |> filter(Feature == "DIFF_PAKE")
   
   # ── Platt scaling (matches main training script) ──────────────────────────
   platt_train <- tibble(

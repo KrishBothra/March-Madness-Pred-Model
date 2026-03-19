@@ -12,6 +12,22 @@ high_cor   <- findCorrelation(cor_matrix, cutoff = 0.90)
 
 diff_clean <- diff_only |> select(-all_of(colnames(diff_only)[high_cor]))
 
+# ── Cap PAKE differential to limit outsized influence ─────────────────────────
+if ("DIFF_PAKE" %in% colnames(diff_clean)) {
+  pake_cap   <- quantile(diff_clean$DIFF_PAKE, 0.60, na.rm = TRUE)  # was 0.90
+  pake_floor <- quantile(diff_clean$DIFF_PAKE, 0.40, na.rm = TRUE)  # was 0.10
+  diff_clean <- diff_clean |>
+    mutate(DIFF_PAKE = pmin(pmax(DIFF_PAKE, pake_floor), pake_cap))
+}
+
+if ("DIFF_WAB" %in% colnames(diff_clean)) {
+  wab_cap   <- quantile(diff_clean$DIFF_WAB, 0.60, na.rm = TRUE)  # was 0.90
+  wab_floor <- quantile(diff_clean$DIFF_WAB, 0.40, na.rm = TRUE)  # was 0.10
+  diff_clean <- diff_clean |>
+    mutate(DIFF_WAB = pmin(pmax(DIFF_WAB, wab_floor), wab_cap))
+}
+
+
 colnames(diff_clean) <- colnames(diff_clean) |>
   str_replace_all(" ", "_") |>
   str_replace_all("%", "PCT") |>
@@ -63,7 +79,7 @@ key_stats <- c(
   #"DIFF_O_RATE", "DIFF_D_RATE", "DIFF_OPPONENT ADJUST", "DIFF_RELATIVE RATING"
 )
 
-key_stats1 <- c(
+key_stats <- c(
   "DIFF_ELO",
   "DIFF_WAB",
   "DIFF_RESUME",
@@ -80,7 +96,8 @@ key_stats1 <- c(
   "DIFF_TOVPCTD",
   "DIFF_TALENT",
   "DIFF_EXP",
-  "DIFF_SCORING_MARGIN"
+  "DIFF_SCORING_MARGIN",
+  "DIFF_PAKE"
 )
 
 # ── Step 4: Build lean training data ──────────────────────────────────────────
@@ -125,7 +142,12 @@ xgb_params <- list(
   min_child_weight = 8,    # was 5
   subsample        = 0.8,  # was 0.7
   colsample_bytree = 0.7,  # was 0.6
-  seed             = 42
+  seed             = 42,
+  # In xgb_params, add:
+  monotone_constraints = setNames(
+    ifelse(colnames(X_train) %in% c("DIFF_PAKE", "DIFF_WAB"), 1, 0),
+    colnames(X_train)
+  )
 )
 
 xgb_model_lean <- xgb.train(
@@ -136,6 +158,9 @@ xgb_model_lean <- xgb.train(
   early_stopping_rounds = 100,
   verbose               = 25
 )
+
+imp <- xgb.importance(model = xgb_model_lean)
+imp |> filter(Feature %in% c("DIFF_PAKE", "DIFF_WAB"))
 
 # ── Step 7: Platt scaling calibration ────────────────────────────────────────
 xgb_probs_train <- predict(xgb_model_lean, dtrain)
