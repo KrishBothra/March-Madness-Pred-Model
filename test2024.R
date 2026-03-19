@@ -18,8 +18,8 @@ validate_year <- function(test_yr) {
       eta              = 0.01,
       max_depth        = 3,
       min_child_weight = 8,    # was 5
-      subsample        = 0.8,  # was 0.7
-      colsample_bytree = 0.7,  # was 0.6
+      subsample        = 0.7,  # was 0.7
+      colsample_bytree = 0.5,  # was 0.6
       seed             = 42,
       monotone_constraints = setNames(
         ifelse(colnames(X_train) == "DIFF_PAKE", 1, 0),
@@ -29,7 +29,7 @@ validate_year <- function(test_yr) {
     data                  = dtrain_lo,
     nrounds               = 1500,
     evals                 = list(train = dtrain_lo, test = dtest_lo),
-    early_stopping_rounds = 100,
+    early_stopping_rounds = 25,
     verbose               = 0       # silenced — runs for every year
   )
   
@@ -85,7 +85,7 @@ validation_summary <- map_dfr(all_results, "summary")
 all_game_results   <- map_dfr(all_results, "games")
 
 # ── Results for a specific year ───────────────────────────────────────────────
-results_2024 <- all_game_results |> filter(year == 2023)
+results_2024 <- all_game_results |> filter(year == 2025)
 print(results_2024)
 
 results_2024 |>
@@ -115,20 +115,20 @@ write.csv(all_game_results,   "March-Madness/all_game_results.csv",   row.names 
 # 
 # tune_results <- pmap_dfr(tune_grid, function(eta, max_depth, min_child_weight,
 #                                              subsample, colsample_bytree) {
-#   
+# 
 #   results <- map(all_years, function(test_yr) {
-#     
+# 
 #     train_lo <- train_data_lean |> filter(model_df_clean$YEAR != test_yr)
 #     test_lo  <- train_data_lean |> filter(model_df_clean$YEAR == test_yr)
-#     
+# 
 #     X_train_lo <- train_lo |> select(-hSeed_won) |> as.matrix()
 #     X_test_lo  <- test_lo  |> select(-hSeed_won) |> as.matrix()
 #     y_train_lo <- ifelse(train_lo$hSeed_won == "favored", 1, 0)
 #     y_test_lo  <- ifelse(test_lo$hSeed_won  == "favored", 1, 0)
-#     
+# 
 #     dtrain_lo <- xgb.DMatrix(data = X_train_lo, label = y_train_lo)
 #     dtest_lo  <- xgb.DMatrix(data = X_test_lo,  label = y_test_lo)
-#     
+# 
 #     xgb_lo <- xgb.train(
 #       params = list(
 #         objective        = "binary:logistic",
@@ -146,17 +146,17 @@ write.csv(all_game_results,   "March-Madness/all_game_results.csv",   row.names 
 #       early_stopping_rounds = 100,
 #       verbose               = 0
 #     )
-#     
+# 
 #     platt_lo <- glm(
 #       y ~ xgb_prob,
 #       data   = tibble(xgb_prob = predict(xgb_lo, dtrain_lo), y = y_train_lo),
 #       family = binomial
 #     )
-#     
+# 
 #     final_probs <- predict(platt_lo,
 #                            tibble(xgb_prob = predict(xgb_lo, dtest_lo)),
 #                            type = "response")
-#     
+# 
 #     tibble(
 #       brier       = mean((final_probs - y_test_lo)^2),
 #       brier_naive = mean((rep(0.70, length(y_test_lo)) - y_test_lo)^2),
@@ -164,9 +164,9 @@ write.csv(all_game_results,   "March-Madness/all_game_results.csv",   row.names 
 #       beats_naive = brier < brier_naive
 #     )
 #   })
-#   
+# 
 #   summary <- bind_rows(results)
-#   
+# 
 #   tibble(
 #     eta, max_depth, min_child_weight, subsample, colsample_bytree,
 #     avg_brier        = round(mean(summary$brier), 4),

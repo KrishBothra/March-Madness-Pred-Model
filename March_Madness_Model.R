@@ -140,11 +140,11 @@ xgb_params <- list(
   eta              = 0.01,
   max_depth        = 3,
   min_child_weight = 8,    # was 5
-  subsample        = 0.8,  # was 0.7
-  colsample_bytree = 0.7,  # was 0.6
-  seed             = 42,
+  subsample        = 0.7,  # was 0.7
+  colsample_bytree = 0.5,  # was 0.6
+  seed             = 42
   # In xgb_params, add:
-  monotone_constraints = setNames(
+  ,monotone_constraints = setNames(
     ifelse(colnames(X_train) %in% c("DIFF_PAKE", "DIFF_WAB"), 1, 0),
     colnames(X_train)
   )
@@ -155,7 +155,7 @@ xgb_model_lean <- xgb.train(
   data                  = dtrain,
   nrounds               = 1500,   # increased to give eta=0.01 room to converge
   evals                 = list(train = dtrain, test = dtest),
-  early_stopping_rounds = 100,
+  early_stopping_rounds = 25,
   verbose               = 25
 )
 

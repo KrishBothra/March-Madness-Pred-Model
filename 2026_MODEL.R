@@ -132,7 +132,7 @@ matchups_2026$Predictions_Raw <- round(final_probs_2026, 4)
 
 injury_map <- tribble(
   ~team,             ~penalty,
-  "North Carolina",  0.08,
+  "North Carolina",  0.15,
   "Texas Tech",      0.10,
   "Alabama",         0.06,
   "BYU",             0.07,
@@ -164,9 +164,8 @@ matchups_2026$Predictions <- round(
 )
 
 # ── 9. Write output ───────────────────────────────────────────────────────────
-write.csv(matchups_2026,
-          "March-Madness/2026_Potential_Matchups_Predicted.csv",
-          row.names = FALSE)
+
+
 
 cat("\nDone! Predictions written to 2026_Potential_Matchups_Predicted.csv\n")
 
@@ -194,3 +193,10 @@ matchups_2026 |>
   select(HigherSeed, HigherSeedNum, LowerSeed, LowerSeedNum, Predictions) |>
   head(15) |>
   print()
+
+matchups_2026 <- matchups_2026 |>
+  select(-Predictions_Raw)
+
+write.csv(matchups_2026,
+          "March-Madness/2026_Potential_Matchups_Predicted.csv",
+          row.names = FALSE)
